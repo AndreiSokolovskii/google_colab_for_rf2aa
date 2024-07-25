@@ -1,0 +1,82 @@
+diff --git a/rf2aa/data/parsers.py b/rf2aa/data/parsers.py
+index f402151..fd1b338 100644
+--- a/rf2aa/data/parsers.py
++++ b/rf2aa/data/parsers.py
+@@ -656,7 +656,10 @@ def parse_templates_raw(ffdb, hhr_fn, atab_fn, max_templ=20):
+             print ("Failed to find %s in *_pdb.ffindex"%hi[0])
+             continue
+         data = read_entry_lines(entry, ffdb.data)
+-        hi += list(parse_pdb_lines_w_seq(data))
++        try:
++          hi += list(parse_pdb_lines_w_seq(data))
++        except:
++          print(entry)
+ 
+     # process hits
+     counter = 0
+diff --git a/rf2aa/data/preprocessing.py b/rf2aa/data/preprocessing.py
+index 8624d55..a16cb8a 100644
+--- a/rf2aa/data/preprocessing.py
++++ b/rf2aa/data/preprocessing.py
+@@ -23,13 +23,17 @@ def make_msa(
+     template_database = model_runner.config.database_params.hhdb
+ 
+     out_a3m = out_dir / "t000_.msa0.a3m"
+-    out_atab = out_dir / "t000_.atab"
++    out_atab =  out_dir / "t000_.atab"
+     out_hhr = out_dir / "t000_.hhr"
+-    if out_a3m.exists() and out_atab.exists() and out_hhr.exists():
+-        return out_a3m, out_hhr, out_atab
++    if not os.path.exists(out_atab):
++        out_atab = ""
++    if not os.path.exists(out_hhr):
++        out_hhr = ""
++    #if out_a3m.exists() and out_atab.exists() and out_hhr.exists():
++    #    return out_a3m, out_hhr, out_atab
+ 
+-    search_command = f"./{command} {fasta_file} {out_dir} {num_cpus} {ram_gb} {search_base} {template_database}"
+-    print(search_command)
+-    _ = subprocess.run(search_command, shell=True)
++    #search_command = f"./{command} {fasta_file} {out_dir} {num_cpus} {ram_gb} {search_base} {template_database}"
++    #print(search_command)
++    #_ = subprocess.run(search_command, shell=True)
+     return out_a3m, out_hhr, out_atab
+ 
+diff --git a/rf2aa/data/protein.py b/rf2aa/data/protein.py
+index a944bc8..70cd68a 100644
+--- a/rf2aa/data/protein.py
++++ b/rf2aa/data/protein.py
+@@ -59,7 +59,7 @@ def load_protein(msa_file, hhr_fn, atab_fn, model_runner):
+     ins[0] = msa[0]
+ 
+     L = msa.shape[1]
+-    if hhr_fn is None or atab_fn is None:
++    if len(hhr_fn) < 1 or len(atab_fn) < 1:
+         print("No templates provided")
+         xyz_t, t1d, mask_t, _ = blank_template(1, L)
+     else:
+diff --git a/rf2aa/run_inference.py b/rf2aa/run_inference.py
+index e25f322..d436c75 100644
+--- a/rf2aa/run_inference.py
++++ b/rf2aa/run_inference.py
+@@ -24,8 +24,11 @@ class ModelRunner:
+         self.config = config
+         initialize_chemdata(self.config.chem_params)
+         FFindexDB = namedtuple("FFindexDB", "index, data")
+-        self.ffdb = FFindexDB(read_index(config.database_params.hhdb+'_pdb.ffindex'),
+-                              read_data(config.database_params.hhdb+'_pdb.ffdata'))
++        if os.path.exists(config.database_params.hhdb+'_pdb.ffindex') and os.path.exists(config.database_params.hhdb+'_pdb.ffdata'):
++            self.ffdb = FFindexDB(read_index(config.database_params.hhdb+'_pdb.ffindex'),
++                                  read_data(config.database_params.hhdb+'_pdb.ffdata'))
++        else:
++            self.ffdb = None
+         self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
+         self.xyz_converter = XYZConverter()
+         self.deterministic = config.get("deterministic", False)
+@@ -206,4 +209,4 @@ def main(config):
+     runner.infer()
+ 
+ if __name__ == "__main__":
+-    main()
+\ No newline at end of file
++    main()
